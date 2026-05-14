@@ -1,0 +1,110 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Core User & Entities ──
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  accounts      Account[]
+  transactions  Transaction[]
+  assets        Asset[]
+  portfolios    Portfolio[]
+  taxRecords    TaxRecord[]
+  aiLogs        AILog[]
+}
+
+model Account {
+  id            String   @id @default(cuid())
+  userId        String
+  plaidId       String?  // for real bank sync
+  name          String   // "Chase Checking", "Amex Business"
+  type          String   // checking, credit, brokerage, retirement
+  balance       Float
+  currency      String   @default("USD")
+  user          User     @relation(fields: [userId], references: [id])
+  transactions  Transaction[]
+}
+
+// ── Transactions (Double-Entry) ──
+model Transaction {
+  id            String   @id @default(cuid())
+  userId        String
+  accountId     String
+  date          DateTime
+  description   String
+  amount        Float
+  type          String   // credit / debit
+  category      String
+  taxDeductible Boolean  @default(false)
+  aiCategory    String?  // auto-filled by Grok
+  receiptUrl    String?
+  user          User     @relation(fields: [userId], references: [id])
+  account       Account  @relation(fields: [accountId], references: [id])
+}
+
+// ── Assets & Vault ──
+model Asset {
+  id            String   @id @default(cuid())
+  userId        String
+  name          String
+  type          String   // real-estate, vehicle, collectible, crypto, nft
+  value         Float
+  depreciationRate Float?
+  acquiredDate  DateTime
+  lastValued    DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+// ── Investing & Portfolio ──
+model Portfolio {
+  id            String   @id @default(cuid())
+  userId        String
+  totalValue    Float
+  ytdReturn     Float
+  riskScore     String
+  user          User     @relation(fields: [userId], references: [id])
+  holdings      Holding[]
+}
+
+model Holding {
+  id            String    @id @default(cuid())
+  portfolioId   String
+  symbol        String
+  shares        Float
+  costBasis     Float
+  user          User?    @relation(fields: [portfolioId], references: [id]) // through portfolio
+}
+
+// ── Tax Records (IRS Ready) ──
+model TaxRecord {
+  id            String   @id @default(cuid())
+  userId        String
+  year          Int
+  formType      String   // 1040, ScheduleC, ScheduleD
+  liability     Float
+  deductions    Float
+  aiOptimized   Boolean  @default(false)
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+// ── AI Audit Logs (full transparency) ──
+model AILog {
+  id            String   @id @default(cuid())
+  userId        String
+  action        String   // "voice_cfo", "oracle_query", "auto_categorize"
+  prompt        String
+  response      String
+  timestamp     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+}
